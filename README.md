@@ -14,7 +14,7 @@ begin
   engine.SetNewObject('obj'); // set a new object
   engine.SetNewObject('obj2.a'); // or set a new object with new object inside
   engine.SetVarBoolean('obj.b', True); // set a bool value inside object
-  engine.SetVarInteger('obj.i', 1); // set a int value inside object
+  engine.SetVarInteger('obj.i', 1); // set an int value inside object
   engine.SetVarLong('obj.l', 1000000000000); // set a long value inside object
   engine.SetVarNull('obj.n'); // set a null value inside object
   engine.SetVarString('obj.s', 'new string'); // set a string value inside object

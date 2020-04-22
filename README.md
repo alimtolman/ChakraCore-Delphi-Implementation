@@ -2,10 +2,21 @@ This is [ChakraCore](https://github.com/microsoft/ChakraCore) implementation for
 
 For successful usage you should take [tondrej](https://github.com/tondrej) bindings and classes from [here](https://github.com/tondrej/chakracore-delphi).
 
-This implementation is very simple without any native callback from JavaScript etc.
-
 Full example of usage:
 ```delphi
+uses
+  ChakraCoreEngine;
+
+function Console_Log(Callee: TJsValueRef; IsConstructCall: Boolean; Args: TArgs; ArgCount: Word; CallbackState: Pointer): TJsValueRef;
+begin
+  Result := GetUndefined();
+
+  if not Assigned(Args) or (ArgCount < 2) then
+    Exit;
+
+  Writeln(JsStringToString(Args^[1]));
+end;
+
 var
   engine: TChakraCoreEngine;
 begin
@@ -21,7 +32,11 @@ begin
   engine.SetVarFromEvaluate('obj2.newThis', 'this;'); // set a value from evaluate
   engine.SetVarFromScript('obj2.intRef', 'obj.i'); // set a value from existing variable
 
+  engine.SetNewObject('console.log'); // set a new object
+  engine.SetNativeFunction('console.log', 'log', @Console_Log); // set object as native function
+
   engine.Script.Append('var r = obj2.intRef + obj.l;'); // add code to the Script
+  engine.Script.Append('console.log(r);');
   engine.Execute(); // and execute
   
   engine.Execute('var r = obj2.intRef + obj.l;'); // or execute code instantly

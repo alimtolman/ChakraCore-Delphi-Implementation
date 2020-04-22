@@ -4,9 +4,15 @@ interface
 
 uses
   Classes, SysUtils,
-  ChakraCommon, ChakraCoreClasses, ChakraCoreUtils;
+  ChakraCore, ChakraCommon, ChakraCoreClasses, ChakraCoreUtils;
 
 type
+  TJsValueRef = JsValueRef;
+
+  TArgs = PJsValueRefArray;
+
+  TNativeFunction = function(callee: TJsValueRef; isConstructCall: Boolean; arguments: TArgs; argumentCount: Word; callbackState: Pointer): TJsValueRef;
+
   TChakraCoreEngine = class
   private
     FContext: TChakraCoreContext;
@@ -14,12 +20,11 @@ type
     FDocumentName: string;
     FRuntime: TChakraCoreRuntime;
     FScript: TStringList;
-
+    (* functions *)
     function FindPath(const path: TArray<string>): JsValueRef;
   public
     constructor Create();
     destructor Destroy(); override;
-
     procedure Execute(const script: string = '');
     function GetVarAsString(const varName: string): string;
     function GetVarFromEvaluate(const script: string = ''): string;
@@ -31,35 +36,47 @@ type
     procedure SetVarLong(const varName: string; const varValue: Int64);
     procedure SetVarNull(const varName: string);
     procedure SetVarString(const varName, varValue: string);
-
+    procedure SetNativeFunction(const ContextPath: string; const FunctionName: string; FunctionPtr: TNativeFunction);
+    (* properties *)
     property DefineGlobalThis: Boolean read FDefineGlobalThis write FDefineGlobalThis;
     property DocumentName: string read FDocumentName write FDocumentName;
     property Script: TStringList read FScript write FScript;
   end;
 
+(* Helpers *)
+
+function JsStringToString(Value: TJsValueRef): string;
+
+function GetUndefined(): TJsValueRef;
+
 implementation
 
-{ private }
-
-function TChakraCoreEngine.FindPath(const path: TArray<string>): JsValueRef;
+function JsStringToString(Value: TJsValueRef): string;
 var
-  i: Integer;
-  obj: JsValueRef;
+  StringValue: JsValueRef;
+  StringLength: size_t;
+  ResultString: UTF8String;
 begin
-  if Length(path) = 1 then
-    obj := FContext.Global
-  else
-  begin
-    obj := JsGetProperty(FContext.Global, path[0]);
+  ResultString := '';
+  StringValue := JsValueAsJsString(Value);
+  StringLength := 0;
+  ChakraCoreCheck(JsCopyString(StringValue, nil, 0, @StringLength));
 
-    for i := 1 to Length(path) - 2 do
-      obj := JsGetProperty(obj, path[i]);
+  if StringLength > 0 then
+  begin
+    SetLength(ResultString, StringLength);
+    ChakraCoreCheck(JsCopyString(StringValue, PAnsiChar(ResultString), StringLength, nil));
   end;
 
-  Result := obj;
+  Result := string(ResultString);
 end;
 
-{ public }
+function GetUndefined(): TJsValueRef;
+begin
+  Result := JsUndefinedValue();
+end;
+
+{---------- TChakraCoreEngine ----------}
 
 constructor TChakraCoreEngine.Create();
 begin
@@ -82,6 +99,28 @@ begin
 
   inherited Destroy();
 end;
+
+(* private *)
+
+function TChakraCoreEngine.FindPath(const path: TArray<string>): JsValueRef;
+var
+  i: Integer;
+  obj: JsValueRef;
+begin
+  if Length(path) = 1 then
+    obj := FContext.Global
+  else
+  begin
+    obj := JsGetProperty(FContext.Global, path[0]);
+
+    for i := 1 to Length(path) - 2 do
+      obj := JsGetProperty(obj, path[i]);
+  end;
+
+  Result := obj;
+end;
+
+(* public *)
 
 procedure TChakraCoreEngine.Execute(const script: string = '');
 begin
@@ -200,6 +239,15 @@ begin
   path := varName.Split(['.']);
 
   JsSetProperty(FindPath(path), path[Length(path) - 1], StringToJsString(varValue), True);
+end;
+
+procedure TChakraCoreEngine.SetNativeFunction(const ContextPath: string; const FunctionName: string; FunctionPtr: TNativeFunction);
+var
+  path: TArray<string>;
+begin
+  path := ContextPath.Split(['.']);
+
+  JsSetCallback(FindPath(path), FunctionName, @FunctionPtr, nil);
 end;
 
 end.
